@@ -23,8 +23,8 @@ section of README.md).
     The model code is copied verbatim (only import paths rewritten) into
     src/medmcp_cardiac/_cinema/ from the upstream commit recorded in
     src/medmcp_cardiac/_cinema/UPSTREAM; upstream's LICENSE travels with it.
-    The weights are three of upstream's fine-tuned checkpoints
-    (finetuned/segmentation/{mnms2,mnms,acdc}_sax, seed 0), which derive from
+    The weights are four of upstream's fine-tuned checkpoints
+    (finetuned/segmentation/{mnms2,mnms,acdc}_sax and mnms2_lax_4c, seed 0), which derive from
     the M&Ms-2, M&Ms and ACDC challenge datasets; those datasets carry their
     own citation requirements, listed in the upstream README.
 
@@ -39,6 +39,7 @@ Bundled libraries
 ------------------------------------------------------------------------------
 
 The Python libraries redistributed inside the container image — including
-PyTorch, nibabel, einops, omegaconf, safetensors, huggingface_hub, and their
+PyTorch, nibabel, numpy, einops, omegaconf, safetensors, huggingface_hub,
+and their
 transitive dependency closure — each remain under their own license; the full
 license texts travel with each package's distribution.

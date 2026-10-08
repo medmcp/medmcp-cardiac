@@ -14,7 +14,7 @@ from medmcp_cardiac.tools import checkpoints
 
 README = Path(__file__).resolve().parent.parent / "README.md"
 
-_TOOL_ROW = re.compile(r"^\|\s*`([a-z_]+)`\s*\|", re.MULTILINE)
+_TOOL_ROW = re.compile(r"^\|\s*`([a-z0-9_]+)`\s*\|", re.MULTILINE)
 _CHECKPOINT_ROW = re.compile(r"^\|\s*`([a-z0-9]+)`\s*\|", re.MULTILINE)
 
 

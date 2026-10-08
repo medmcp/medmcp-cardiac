@@ -39,6 +39,9 @@ class FunctionMetrics(TypedDict):
     rv_edv_index_ml_m2: float | None
     rv_esv_index_ml_m2: float | None
     lv_mass_index_g_m2: float | None
+    heart_rate_bpm: float | None
+    cardiac_output_l_min: float | None
+    cardiac_index_l_min_m2: float | None
 
 
 class FunctionResult(TypedDict):
@@ -58,6 +61,31 @@ class VolumeCurves(TypedDict):
     right_ventricle: list[float]
     myocardium: list[float]
     left_ventricle: list[float]
+
+
+_UNITS: dict[str, str] = {
+    "n_frames": "",
+    "ed_frame": "frame index",
+    "es_frame": "frame index",
+    "lv_edv_ml": "ml",
+    "lv_esv_ml": "ml",
+    "lv_sv_ml": "ml",
+    "lv_ef_percent": "%",
+    "rv_edv_ml": "ml",
+    "rv_esv_ml": "ml",
+    "rv_sv_ml": "ml",
+    "rv_ef_percent": "%",
+    "lv_mass_g": "g",
+    "bsa_m2": "m2",
+    "lv_edv_index_ml_m2": "ml/m2",
+    "lv_esv_index_ml_m2": "ml/m2",
+    "rv_edv_index_ml_m2": "ml/m2",
+    "rv_esv_index_ml_m2": "ml/m2",
+    "lv_mass_index_g_m2": "g/m2",
+    "heart_rate_bpm": "bpm",
+    "cardiac_output_l_min": "l/min",
+    "cardiac_index_l_min_m2": "l/min/m2",
+}
 
 
 def body_surface_area_m2(height_cm: float, weight_kg: float) -> float:
@@ -97,13 +125,15 @@ def compute_function(
     curves: VolumeCurves,
     height_cm: float | None = None,
     weight_kg: float | None = None,
+    heart_rate_bpm: float | None = None,
 ) -> FunctionMetrics:
     """Derive ED/ES phases and the standard function metrics from volume curves.
 
     End-diastole is the frame of maximal LV volume and end-systole the frame of
     minimal LV volume; both ventricles are measured at those two LV-defined phases,
     the usual convention. LV mass is the myocardial volume at ED times 1.05 g/ml.
-    With height and weight, volumes and mass are also indexed to body surface area.
+    With height and weight, volumes and mass are also indexed to body surface area;
+    with a heart rate, cardiac output (and index) follow from the LV stroke volume.
 
     Raises:
         ValueError: with fewer than two frames, or when the LV was not found at all.
@@ -116,19 +146,24 @@ def compute_function(
         raise ValueError("ventricular function needs a cine series with at least two frames")
     if max(lv) <= 0:
         raise ValueError("no left-ventricle voxels in any frame; the segmentation is empty")
+    if heart_rate_bpm is not None and heart_rate_bpm <= 0:
+        raise ValueError("heart_rate_bpm must be positive")
 
     ed = max(range(n_frames), key=lambda i: lv[i])
     es = min(range(n_frames), key=lambda i: lv[i])
     lv_edv, lv_esv = lv[ed], lv[es]
     rv_edv, rv_esv = rv[ed], rv[es]
+    lv_sv = lv_edv - lv_esv
     lv_mass = myo[ed] * MYOCARDIUM_DENSITY_G_PER_ML
 
     bsa: float | None = None
     if height_cm is not None and weight_kg is not None:
         bsa = body_surface_area_m2(height_cm, weight_kg)
 
-    def indexed(value: float) -> float | None:
-        return value / bsa if bsa else None
+    def indexed(value: float | None) -> float | None:
+        return value / bsa if bsa and value is not None else None
+
+    cardiac_output = lv_sv * heart_rate_bpm / 1000.0 if heart_rate_bpm else None
 
     return {
         "n_frames": n_frames,
@@ -136,8 +171,8 @@ def compute_function(
         "es_frame": es,
         "lv_edv_ml": lv_edv,
         "lv_esv_ml": lv_esv,
-        "lv_sv_ml": lv_edv - lv_esv,
-        "lv_ef_percent": 100.0 * (lv_edv - lv_esv) / lv_edv,
+        "lv_sv_ml": lv_sv,
+        "lv_ef_percent": 100.0 * lv_sv / lv_edv,
         "rv_edv_ml": rv_edv,
         "rv_esv_ml": rv_esv,
         "rv_sv_ml": rv_edv - rv_esv,
@@ -149,6 +184,9 @@ def compute_function(
         "rv_edv_index_ml_m2": indexed(rv_edv),
         "rv_esv_index_ml_m2": indexed(rv_esv),
         "lv_mass_index_g_m2": indexed(lv_mass),
+        "heart_rate_bpm": heart_rate_bpm,
+        "cardiac_output_l_min": cardiac_output,
+        "cardiac_index_l_min_m2": indexed(cardiac_output),
     }
 
 
@@ -191,32 +229,12 @@ def write_volumes_csv(path: Path, curves: VolumeCurves) -> Path:
 
 
 def write_function_csv(path: Path, metrics: FunctionMetrics) -> Path:
-    """The function metrics as ``metric,value,unit`` rows."""
-    units = {
-        "n_frames": "",
-        "ed_frame": "frame index",
-        "es_frame": "frame index",
-        "lv_edv_ml": "ml",
-        "lv_esv_ml": "ml",
-        "lv_sv_ml": "ml",
-        "lv_ef_percent": "%",
-        "rv_edv_ml": "ml",
-        "rv_esv_ml": "ml",
-        "rv_sv_ml": "ml",
-        "rv_ef_percent": "%",
-        "lv_mass_g": "g",
-        "bsa_m2": "m2",
-        "lv_edv_index_ml_m2": "ml/m2",
-        "lv_esv_index_ml_m2": "ml/m2",
-        "rv_edv_index_ml_m2": "ml/m2",
-        "rv_esv_index_ml_m2": "ml/m2",
-        "lv_mass_index_g_m2": "g/m2",
-    }
+    """The function metrics as ``metric,value,unit`` rows; unset optional values are left out."""
     values = cast(dict[str, float | int | None], metrics)
     with path.open("w", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(["metric", "value", "unit"])
-        for key, unit in units.items():
+        for key, unit in _UNITS.items():
             value = values[key]
             if value is None:
                 continue
@@ -243,6 +261,7 @@ def cardiac_function(
     output_dir: Path | None = None,
     height_cm: float | None = None,
     weight_kg: float | None = None,
+    heart_rate_bpm: float | None = None,
 ) -> FunctionResult:
     """Compute ventricular volumes and function from a cine short-axis segmentation.
 
@@ -252,17 +271,19 @@ def cardiac_function(
     and ejection fraction for both ventricles, and LV mass. End-diastole is the frame
     of maximal LV volume, end-systole the frame of minimal LV volume. With
     ``height_cm`` and ``weight_kg`` the volumes and mass are also indexed to body
-    surface area (Mosteller).
+    surface area (Mosteller); with ``heart_rate_bpm`` cardiac output and cardiac
+    index are added.
 
     ``segment_cine_sax`` already runs this when ``compute_function=True``; call it
-    directly to re-analyse an existing segmentation, add height and weight, or analyse
-    a label map produced elsewhere with the same label values.
+    directly to re-analyse an existing segmentation, add height, weight or heart
+    rate, or analyse a label map produced elsewhere with the same label values.
 
     Args:
         segmentation_path: 4D label map (``*_dseg.nii.gz``) with one frame per phase.
         output_dir: Where to write the CSVs. Defaults to the segmentation's folder.
         height_cm: Patient height, for body-surface-area indexing.
         weight_kg: Patient weight, for body-surface-area indexing.
+        heart_rate_bpm: Heart rate during the acquisition, for cardiac output.
 
     Returns:
         The metrics, the paths of a per-frame volume CSV and a metric CSV, and
@@ -290,7 +311,7 @@ def cardiac_function(
             "cine label map with one volume per phase."
         )
     curves = volume_curves(labels, voxel_volume_ml)
-    metrics = compute_function(curves, height_cm, weight_kg)
+    metrics = compute_function(curves, height_cm, weight_kg, heart_rate_bpm)
     warnings = function_warnings(curves, metrics)
 
     stem = base_stem(segmentation_path)
@@ -315,7 +336,8 @@ def render_function_rules(prefix: str) -> str:
         "values rounded to whole numbers, using the keys under "
         f"'{prefix.rstrip('.')}':\n"
         "  LV EDV / ESV / SV (ml), LVEF (%), RV EDV / ESV / SV (ml), RVEF (%), "
-        "LV mass (g); add the indexed values (ml/m2, g/m2) only when they are not null.\n"
+        "LV mass (g); add the indexed values (ml/m2, g/m2), cardiac output (l/min) and "
+        "cardiac index (l/min/m2) only when they are not null.\n"
         f"State which frames were taken as ED and ES (<{prefix}ed_frame>, "
         f"<{prefix}es_frame>, zero-based).\n"
         "Relay every entry of 'warnings' verbatim -- they change how the numbers "
@@ -324,6 +346,7 @@ def render_function_rules(prefix: str) -> str:
         "a clinical finding, and do not compare them with reference ranges unless "
         "the user asks.\n"
         "NEXT ACTION: Offer the per-frame volume curve at <volumes_path> and the "
-        "metric CSV at <function_path>. The tool already verified every path it "
+        "metric CSV at <function_path>, and offer regional_wall_analysis for the "
+        "AHA 16-segment wall-thickness table. The tool already verified every path it "
         "returns -- do not recheck them."
     )

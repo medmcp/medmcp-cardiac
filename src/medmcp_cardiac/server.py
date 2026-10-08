@@ -4,13 +4,18 @@ from importlib.resources import files as _pkg_files
 
 from mcp.server.fastmcp import FastMCP
 
+from medmcp_cardiac.tools.calcium import cardiac_calcium_score
 from medmcp_cardiac.tools.function import cardiac_function
-from medmcp_cardiac.tools.segmentation import segment_cine_sax
+from medmcp_cardiac.tools.regional import regional_wall_analysis
+from medmcp_cardiac.tools.segmentation import segment_cine_lax4c, segment_cine_sax
 
 mcp = FastMCP("medmcp-cardiac")
 
 mcp.add_tool(segment_cine_sax)
+mcp.add_tool(segment_cine_lax4c)
 mcp.add_tool(cardiac_function)
+mcp.add_tool(regional_wall_analysis)
+mcp.add_tool(cardiac_calcium_score)
 
 
 def server_config() -> dict[str, object]:

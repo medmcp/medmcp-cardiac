@@ -219,3 +219,37 @@ def input_warnings(path: Path, info: VolumeInfo) -> list[str]:
             "so the segmentation is likely meaningless."
         )
     return warnings
+
+
+def lax_input_warnings(path: Path, info: VolumeInfo) -> list[str]:
+    """Advisory checks for a long-axis cine (one or more 2D planes over time)."""
+    warnings: list[str] = []
+    if info["n_frames"] == 1:
+        warnings.append(
+            "Input is a single frame, not a cine series: the segmentation covers that "
+            "frame only and no area change over the cycle can be derived."
+        )
+    elif info["n_frames"] < _MIN_FRAMES:
+        warnings.append(
+            f"Only {info['n_frames']} frames: end-systole is poorly resolved with fewer "
+            f"than {_MIN_FRAMES} phases, so the fractional area change is approximate."
+        )
+    if info["n_slices"] > 1:
+        warnings.append(
+            f"The input holds {info['n_slices']} planes; each is segmented on its own as a "
+            "four-chamber view, and the metrics come from the plane with the largest LV. "
+            "If some planes are not four-chamber views, their labels are meaningless."
+        )
+    sx, sy = info["spacing_mm"][0], info["spacing_mm"][1]
+    if not (_INPLANE_MM[0] <= sx <= _INPLANE_MM[1] and _INPLANE_MM[0] <= sy <= _INPLANE_MM[1]):
+        warnings.append(
+            f"In-plane spacing {sx:.2f} x {sy:.2f} mm is outside the usual cine range "
+            f"({_INPLANE_MM[0]}-{_INPLANE_MM[1]} mm). Check the header before trusting "
+            "areas: every measurement scales with it."
+        )
+    if _looks_like_ct(path):
+        warnings.append(
+            "Input looks like CT (Hounsfield units) but the model is trained on cine MR, "
+            "so the segmentation is likely meaningless."
+        )
+    return warnings

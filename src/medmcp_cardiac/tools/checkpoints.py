@@ -11,8 +11,10 @@ from typing import Literal, TypedDict
 HF_REPO_ID = "mathpluscode/CineMA"
 
 Checkpoint = Literal["mnms2", "mnms", "acdc"]
+LaxCheckpoint = Literal["mnms2"]
 
-# Label values written to the segmentation, in label order. Upstream: RV=1, MYO=2, LV=3.
+# Label values written to the segmentation, in label order. Upstream: RV=1, MYO=2, LV=3,
+# the same on short-axis and long-axis checkpoints.
 LABELS: dict[int, str] = {
     1: "right_ventricle",
     2: "myocardium",
@@ -23,17 +25,22 @@ RV_LABEL = 1
 MYO_LABEL = 2
 LV_LABEL = 3
 
-# The grid every SAX checkpoint was trained on: 1 x 1 mm in-plane, 10 mm between
-# slices, and one 192 x 192 x 16 patch (sliding-window for anything larger).
+# The grid every short-axis checkpoint was trained on: 1 x 1 mm in-plane, 10 mm
+# between slices, one 192 x 192 x 16 patch (sliding-window for anything larger).
 TARGET_SPACING_MM: tuple[float, float, float] = (1.0, 1.0, 10.0)
 PATCH_SIZE: tuple[int, int, int] = (192, 192, 16)
 
+# The long-axis four-chamber checkpoint is a 2D model: 1 x 1 mm, one 256 x 256 patch.
+LAX_TARGET_SPACING_MM: tuple[float, float] = (1.0, 1.0)
+LAX_PATCH_SIZE: tuple[int, int] = (256, 256)
+
 
 class CheckpointInfo(TypedDict):
-    """One fine-tuned short-axis segmentation checkpoint."""
+    """One fine-tuned segmentation checkpoint."""
 
     weights: str
     config: str
+    view: Literal["sax", "lax_4c"]
     trained_on: str
 
 
@@ -43,6 +50,7 @@ CHECKPOINTS: dict[str, CheckpointInfo] = {
     "mnms2": {
         "weights": "finetuned/segmentation/mnms2_sax/mnms2_sax_0.safetensors",
         "config": "finetuned/segmentation/mnms2_sax/config.yaml",
+        "view": "sax",
         "trained_on": (
             "M&Ms-2 (multi-centre, multi-vendor, multi-disease; 360 subjects) -- the "
             "default, trained on the most diverse data"
@@ -51,37 +59,51 @@ CHECKPOINTS: dict[str, CheckpointInfo] = {
     "mnms": {
         "weights": "finetuned/segmentation/mnms_sax/mnms_sax_0.safetensors",
         "config": "finetuned/segmentation/mnms_sax/config.yaml",
+        "view": "sax",
         "trained_on": "M&Ms (multi-centre, multi-vendor; 375 subjects)",
     },
     "acdc": {
         "weights": "finetuned/segmentation/acdc_sax/acdc_sax_0.safetensors",
         "config": "finetuned/segmentation/acdc_sax/config.yaml",
+        "view": "sax",
         "trained_on": "ACDC (single centre, 150 subjects across five diagnostic groups)",
     },
 }
 
+LAX_CHECKPOINTS: dict[str, CheckpointInfo] = {
+    "mnms2": {
+        "weights": "finetuned/segmentation/mnms2_lax_4c/mnms2_lax_4c_0.safetensors",
+        "config": "finetuned/segmentation/mnms2_lax_4c/config.yaml",
+        "view": "lax_4c",
+        "trained_on": "M&Ms-2 four-chamber long-axis cines (multi-centre, multi-vendor)",
+    },
+}
+
 DEFAULT_CHECKPOINT: Checkpoint = "mnms2"
+DEFAULT_LAX_CHECKPOINT: LaxCheckpoint = "mnms2"
 
 
-def checkpoint_info(name: str) -> CheckpointInfo:
-    """Look up a checkpoint by name.
+def checkpoint_info(name: str, view: Literal["sax", "lax_4c"] = "sax") -> CheckpointInfo:
+    """Look up a checkpoint by name for a view.
 
     Raises:
-        ValueError: if the name is not one of the shipped checkpoints.
+        ValueError: if the name is not one of the shipped checkpoints for that view.
     """
+    table = CHECKPOINTS if view == "sax" else LAX_CHECKPOINTS
     try:
-        return CHECKPOINTS[name]
+        return table[name]
     except KeyError:
         raise ValueError(
-            f"Unknown checkpoint {name!r}. Available: {', '.join(CHECKPOINTS)}."
+            f"Unknown {view} checkpoint {name!r}. Available: {', '.join(table)}."
         ) from None
 
 
 def weight_files() -> list[str]:
     """Every Hugging Face file the image must bake, in a stable order."""
     files: list[str] = []
-    for info in CHECKPOINTS.values():
-        for key in ("weights", "config"):
-            if info[key] not in files:
-                files.append(info[key])
+    for table in (CHECKPOINTS, LAX_CHECKPOINTS):
+        for info in table.values():
+            for key in ("weights", "config"):
+                if info[key] not in files:
+                    files.append(info[key])
     return files
