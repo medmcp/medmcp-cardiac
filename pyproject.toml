@@ -3,13 +3,13 @@ requires = ["uv_build"]
 build-backend = "uv_build"
 
 [project]
-name = "medmcp-template"
-version = "0.0.0"
-description = "Template for medmcp ecosystem packages (stacks, foundations, tools)."
+name = "medmcp-cardiac"
+version = "0.1.0"
+description = "Cine cardiac MRI segmentation and ventricular function (CineMA) for the medmcp ecosystem."
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [
-    { name = "Julian McGinnis", email = "julian.mcginnis@tum.de" },
+    { name = "Paul Friedrich", email = "paul.friedrich@unibas.ch" },
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -25,35 +25,46 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Image Processing",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
 ]
-keywords = ["medical", "image processing", "ai-agent", "mcp"]
+keywords = ["medical", "image processing", "segmentation", "cardiac", "mri", "cine", "ejection fraction", "ai-agent", "mcp"]
 requires-python = ">=3.12"
 dependencies = [
-    "mcp>=1.0",
-    # "medmcp-dicom>=0.1",  # uncomment once medmcp-dicom is available
+    # Capped below 2.0: mcp 2.x moved FastMCP out of `mcp.server.fastmcp`, which every
+    # medmcp stack imports. Lift the cap across the ecosystem at once, not here alone --
+    # the core talks to all stacks through the same protocol version.
+    "mcp>=1.9,<2",
+    "nibabel>=5",
+    "numpy>=1.24",
+    # Pinned to the same 2.7.1 as medmcp-neuro-core and medmcp-totalsegmentator, from
+    # the CUDA 12.8 index ([tool.uv.sources]), so the fleet runs one validated torch +
+    # CUDA combination across every GPU stack.
+    "torch==2.7.1",
+    # What the vendored CineMA model code (src/medmcp_cardiac/_cinema) needs at import:
+    # einops for the rotary embedding, omegaconf for the checkpoint's config.yaml,
+    # safetensors for the weights, huggingface_hub to fetch them (at image build time;
+    # the container runs offline against the baked copy).
+    "einops>=0.8",
+    "omegaconf>=2.3",
+    "safetensors>=0.4",
+    "huggingface-hub>=0.25",
 ]
 
 [project.scripts]
-medmcp-template = "medmcp_template.server:main"
+medmcp-cardiac = "medmcp_cardiac.server:main"
 
 [project.entry-points."medmcp.stacks"]
-medmcp-template = "medmcp_template.server:server_config"
-
-# How a downstream "core" package declares this package as an optional extra:
-# [project.optional-dependencies]
-# neuro = ["medmcp-neuro>=0.1"]
+medmcp-cardiac = "medmcp_cardiac.server:server_config"
 
 [project.urls]
-Homepage = "https://github.com/medmcp/medmcp-template"
-Issues = "https://github.com/medmcp/medmcp-template/issues"
-
-# Pin git-sourced medmcp packages during development:
-# [tool.uv.sources]
-# medmcp-dicom = { git = "https://github.com/medmcp/medmcp-dicom", branch = "main" }
+Homepage = "https://github.com/medmcp/medmcp-cardiac"
+Issues = "https://github.com/medmcp/medmcp-cardiac/issues"
 
 [dependency-groups]
 test = [
     "pytest>=9",
     "pytest-asyncio>=1.2",
+    # Used by tests/test_arm64.py to evaluate the lock's environment markers. Arrives
+    # transitively anyway; declared so the test does not depend on that continuing.
+    "packaging>=24",
 ]
 quality = [
     "ruff>=0.15",
@@ -68,10 +79,34 @@ dev = [
 [tool.uv]
 default-groups = ["dev"]
 
+# The cu128 torch wheels declare triton as `sys_platform == 'linux'` with no
+# architecture constraint (PyPI's torch correctly adds platform_machine ==
+# 'x86_64'). triton publishes x86_64 wheels only and has no sdist, so on
+# linux/aarch64 resolution fails outright with "Distribution `triton` ... doesn't
+# have a source distribution or wheel for the current platform". Restore the
+# missing architecture marker so triton is required on x86_64 only; torch itself
+# has a manylinux_2_28_aarch64 cu128 wheel and does not need triton there.
+override-dependencies = [
+    "triton; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+
+# Pin the PyTorch ecosystem to the CUDA 12.8 build so the GPU image runs on any
+# host driver >= R570 (covers Turing through Blackwell via CUDA backward-compat).
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"
 src = ["src", "tests"]
+# Vendored upstream model code is kept byte-for-byte except its import lines (see
+# scripts/vendor-cinema.sh), so it is not held to this repo's style.
+extend-exclude = ["src/medmcp_cardiac/_cinema"]
 
 [tool.ruff.lint]
 select = [
@@ -96,8 +131,15 @@ quote-style = "double"
 
 [tool.pyright]
 include = ["src", "tests"]
+# _run_cinema.py is the inference subprocess entry point and _cinema/ is vendored
+# upstream code; both are untyped torch code that would need annotating line by
+# line to satisfy strict mode -- exclude rather than fork upstream for type hints.
+exclude = ["src/medmcp_cardiac/_cinema", "src/medmcp_cardiac/tools/_run_cinema.py"]
 pythonVersion = "3.12"
 typeCheckingMode = "strict"
+# nibabel ships no stub package and none exists on typeshed. Its call sites are
+# narrowed explicitly where it matters.
+reportMissingTypeStubs = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,6 +1,6 @@
 name: Template drift
 
-# Every MedMCP stack shares a set of files with medmcp-template — the CI
+# Every MedMCP stack shares a set of files with medmcp-cardiac — the CI
 # workflow, pre-commit config, issue templates, licence and so on, listed in
 # scripts/shared-files.txt. Nothing stops one repo editing its copy, and nothing
 # notices: a fix landing in the template silently fails to reach the stacks, and
@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Compare shared files against medmcp-template
+      - name: Compare shared files against medmcp-cardiac
         env:
           # Set this secret only while the template is private; once it is
           # public an anonymous clone is enough and the secret can go.
@@ -43,14 +43,14 @@ jobs:
             exit 0
           fi
 
-          url=https://github.com/medmcp/medmcp-template.git
-          [ -n "$TEMPLATE_TOKEN" ] && url="https://x-access-token:${TEMPLATE_TOKEN}@github.com/medmcp/medmcp-template.git"
+          url=https://github.com/medmcp/medmcp-cardiac.git
+          [ -n "$TEMPLATE_TOKEN" ] && url="https://x-access-token:${TEMPLATE_TOKEN}@github.com/medmcp/medmcp-cardiac.git"
 
           if ! git clone --quiet --depth 1 "$url" /tmp/template 2>/dev/null; then
             # Do not fail the build over an unreadable template: while the repos
             # are private this would red-CI every stack for a reason unrelated
             # to the change under review.
-            echo "::warning::could not read medmcp-template (private?) — drift not checked"
+            echo "::warning::could not read medmcp-cardiac (private?) — drift not checked"
             exit 0
           fi
 
@@ -69,10 +69,10 @@ jobs:
           done < "$manifest"
 
           if [ -n "$drifted" ]; then
-            echo "::error::shared files differ from medmcp-template:$drifted"
+            echo "::error::shared files differ from medmcp-cardiac:$drifted"
             echo
             echo "Each of these is meant to be identical across every stack."
-            echo "If the change belongs everywhere, make it in medmcp-template."
+            echo "If the change belongs everywhere, make it in medmcp-cardiac."
             echo "Then, here:  ./scripts/sync-from-template.sh"
             echo
             for f in $drifted; do

@@ -1,0 +1,11 @@
+# Written by scripts/vendor-cinema.sh -- do not edit.
+repo: https://github.com/mathpluscode/CineMA
+rev: c10daa1d93f0ea28d8b9ad9206b0f673d25805c1
+files:
+  cinema/conv.py -> conv.py
+  cinema/convvit.py -> convvit.py
+  cinema/log.py -> log.py
+  cinema/rotary.py -> rotary.py
+  cinema/segmentation/convunetr.py -> convunetr.py
+  cinema/transform.py -> transform.py
+  cinema/vit.py -> vit.py

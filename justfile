@@ -60,6 +60,6 @@ fix:
 
 # Build this stack's container image (stdio MCP server). Requires medmcp-base —
 # build it once from the core repo: `just docker-base` in a medmcp checkout. The core
-# launches this image on demand via a stacks.d/medmcp-template.toml manifest.
-docker-build TAG="medmcp-template:dev":
+# launches this image on demand via a stacks.d/medmcp-cardiac.toml manifest.
+docker-build TAG="medmcp-cardiac:dev":
     docker build -t {{TAG}} .

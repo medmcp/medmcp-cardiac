@@ -6,7 +6,7 @@ No MCP server or subprocess needed — tools are just annotated functions.
 
 import pytest
 
-from medmcp_template.tools.example import add_numbers, process_image
+from medmcp_cardiac.tools.example import add_numbers, process_image
 
 
 def test_add_numbers_basic() -> None:

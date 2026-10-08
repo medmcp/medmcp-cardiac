@@ -1,23 +1,44 @@
-medmcp-template
-Copyright 2026 The MedMCP authors
+medmcp-cardiac
+Copyright 2026 Paul Friedrich
 
 This product is licensed under the Apache License, Version 2.0 (see LICENSE).
 
 ------------------------------------------------------------------------------
-Bundled third-party tools and model weights
+Bundled model code and weights
 ------------------------------------------------------------------------------
 
-REPLACE THIS SECTION. A stack that wraps third-party tools, or that bakes their
-pretrained weights into its published image, redistributes them — each remains
-under its own license and most carry citation requirements of their own. List
-every one here, and mirror the citations in README.md.
+medmcp-cardiac vendors the CineMA segmentation model code and redistributes its
+fine-tuned weights (baked into the published container image). Each remains
+under its own license and carries its own citation requirements; if you use the
+results in research, please cite the underlying methods (see the "Citation"
+section of README.md).
 
-Use this shape (see medmcp-neuro-core's NOTICE for a filled-in example):
+  - CineMA (segment_cine_sax) — a foundation model for cine cardiac MRI; the
+    ConvUNetR short-axis segmentation network and its fine-tuned weights.
+    Code: MIT. https://github.com/mathpluscode/CineMA
+    Weights: MIT. https://huggingface.co/mathpluscode/CineMA
+    Cite: Fu et al., "CineMA: a foundation model for cine cardiac MRI",
+    Communications Medicine (2026). doi:10.1038/s43856-026-01636-0
 
-  - <tool name> (<the tool function that uses it>) — <one line on what it does>.
-    <License>. <upstream URL>
-    Cite: <author et al., "title", venue (year)>.
+    The model code is copied verbatim (only import paths rewritten) into
+    src/medmcp_cardiac/_cinema/ from the upstream commit recorded in
+    src/medmcp_cardiac/_cinema/UPSTREAM; upstream's LICENSE travels with it.
+    The weights are three of upstream's fine-tuned checkpoints
+    (finetuned/segmentation/{mnms2,mnms,acdc}_sax, seed 0), which derive from
+    the M&Ms-2, M&Ms and ACDC challenge datasets; those datasets carry their
+    own citation requirements, listed in the upstream README.
 
-If your stack bundles nothing third-party, say so explicitly rather than
-deleting the file — "this stack bundles no third-party models or weights" is
-information, an absent NOTICE is ambiguous.
+  - timm (pytorch-image-models) — the Mlp, SwiGLU, DropPath, LayerScale,
+    to_2tuple and use_fused_attn layers the model code imports, copied into
+    src/medmcp_cardiac/_cinema/_timm.py from timm 1.0.15.
+    Apache-2.0. Copyright 2020 Ross Wightman.
+    https://github.com/huggingface/pytorch-image-models
+
+------------------------------------------------------------------------------
+Bundled libraries
+------------------------------------------------------------------------------
+
+The Python libraries redistributed inside the container image — including
+PyTorch, nibabel, einops, omegaconf, safetensors, huggingface_hub, and their
+transitive dependency closure — each remain under their own license; the full
+license texts travel with each package's distribution.
