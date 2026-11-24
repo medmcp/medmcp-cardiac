@@ -640,7 +640,7 @@ test = [
 requires-dist = [
     { name = "einops", specifier = ">=0.8" },
     { name = "huggingface-hub", specifier = ">=0.25" },
-    { name = "mcp", specifier = ">=1.9,<2" },
+    { name = "mcp", specifier = ">=1.19,<2" },
     { name = "nibabel", specifier = ">=5" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "omegaconf", specifier = ">=2.3" },

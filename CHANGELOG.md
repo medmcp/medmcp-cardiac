@@ -12,6 +12,7 @@ for clinical use.** CineMA is not a medical device.
 
 ### Added
 
+- Every tool declares its effect (read-only, writes new files, destructive) for MedMCP's approval card.
 - `segment_cine_sax` — CineMA short-axis cine segmentation (RV, myocardium, LV) on every frame; writes a 4D `*_dseg.nii.gz`, a label CSV, and ED/ES image + label pairs the workspace viewer can overlay.
 - `cardiac_function` — EDV, ESV, SV, EF for both ventricles and LV mass from a cine label map, optionally indexed to body surface area; per-frame volume CSV.
 - Three checkpoints (`mnms2` default, `mnms`, `acdc`), all baked into the image; the build reads the list from `tools/checkpoints.py`.
